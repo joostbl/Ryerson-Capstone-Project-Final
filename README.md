@@ -13,7 +13,8 @@ Files uploaded:Scripts in RMD, PDF, and HTML format uploaded:
     e.	NRC
     f.  Emoji
 3)	LDA Topic Modelling
-4)	LDA document classification 
+4)	LDA document classification including the various scenarios.
 
-All scripts are in duplicate or the data set May 202 and data set September 2021.
-As well, multiple scripts are included with the scenario analysis as samples were used to get to results.
+All scripts are in duplicate for the data set May 202 and data set September 2021.
+
+Excluded are the multiple scripts to perform samples to generate results.
