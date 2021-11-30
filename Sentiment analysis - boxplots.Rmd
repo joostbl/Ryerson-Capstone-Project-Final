@@ -1,0 +1,111 @@
+---
+title: "box plots sentiment analysis"
+author: "Joost Bloos"
+date: "19/11/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+
+```{r}
+library(ggplot2)
+
+```
+
+
+
+```{r}
+#getwd()
+#setwd("C:/Ryerson University - Capstone project/Module 2/EIEEE - Large dataset/Combined")
+
+```
+
+
+```{r}
+
+sentimentResultMay2020 <- read.csv(file = "sentimentResultMay2020.csv")
+
+str(sentimentResultMay2020)
+```
+
+
+```{r}
+
+boxplot(sentimentResultMay2020$sentiment_nrc, sentimentResultMay2020$sentiment_afinn, sentimentResultMay2020$sentiment_score, sentimentResultMay2020$sentiment_Syuzhet, sentimentResultMay2020$sentiment_Bing,
+        
+main="Boxplots Sentiments - May 2020",
+xlab="Sentiment analysis for the different dictionaries",
+names = c("nrc", "afinn", "sentimentR", "Syuzhet", "bing"),
+ylab="Sentiment score",
+col="orange",
+border="brown"
+)
+
+```
+
+```{r}
+
+boxplot(sentimentResultMay2020$sentiment_nrc, 
+main="Boxplot NRC",
+xlab="NRC sentiment analysis",
+ylab="Sentiment score",
+col="orange",
+border="brown"
+)
+
+
+
+
+```
+
+```{r}
+boxplot(sentimentResultMay2020$sentiment_afinn, 
+main="Boxplot afinn",
+xlab="afinn sentiment analysis",
+ylab="Sentiment score",
+col="orange",
+border="brown"
+)
+
+```
+
+```{r}
+boxplot(sentimentResultMay2020$sentiment_score, 
+main="Boxplot SentimentR",
+xlab="SentimentR sentiment analysis",
+ylab="Sentiment score",
+col="orange",
+border="brown"
+)
+
+```
+
+```{r}
+boxplot(sentimentResultMay2020$sentiment_Syuzhet, 
+main="Boxplot Syuzhet",
+xlab="Syuzhet sentiment analysis",
+ylab="Sentiment score",
+col="orange",
+border="brown"
+)
+
+```
+
+```{r}
+boxplot(sentimentResultMay2020$sentiment_Bing, 
+main="Boxplot Bing",
+xlab="Bing sentiment analysis",
+ylab="Sentiment score",
+col="orange",
+border="brown"
+)
+
+```
+

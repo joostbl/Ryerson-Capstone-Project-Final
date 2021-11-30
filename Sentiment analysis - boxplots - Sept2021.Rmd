@@ -1,0 +1,60 @@
+---
+title: "box plots sentiment analysis"
+author: "Joost Bloos"
+date: "19/11/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+
+```{r}
+library(ggplot2)
+
+```
+
+
+
+```{r}
+#getwd()
+#setwd("C:/Ryerson University - Capstone project/Module 2/EIEEE - Large dataset/Combined")
+
+```
+
+
+```{r}
+
+sentimentResultSept2021 <- read.csv(file = "sentimentResultSept2021.csv")
+
+str(sentimentResultSept2021)
+```
+
+```{r}
+
+sentimentResultSept2021$Syuzhet = sentimentResultSept2021$sentiment_Syuzhet
+sentimentResultSept2021$afinn = sentimentResultSept2021$sentiment_afinn
+sentimentResultSept2021$bing = sentimentResultSept2021$sentiment_bing
+sentimentResultSept2021$nrc = sentimentResultSept2021$sentiment_nrc
+
+str(sentimentResultSept2021)
+```
+
+```{r}
+
+boxplot(sentimentResultSept2021$nrc, sentimentResultSept2021$afinn, sentimentResultSept2021$sentimentR, sentimentResultSept2021$Syuzhet, sentimentResultSept2021$bing,
+main="Boxplots Sentiments - September 2021", names = c("nrc", "afinn", "sentimentR", "Syuzhet", "bing"),
+xlab="Sentiment analysis for the different dictionaries",
+ylab="Sentiment score",
+col="orange",
+border="brown"
+)
+
+```
+
+

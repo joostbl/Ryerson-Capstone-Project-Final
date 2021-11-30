@@ -1,0 +1,716 @@
+---
+title: "Document Classification"
+author: "Joost Bloos"
+date: "10/11/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#Source: https://rpubs.com/Argaadya/topic_lda
+
+#install.packages("textmineR")
+#install.packages("dplyr")
+#install.packages("magrittr")
+#install.packages("stringr")
+#install.packages("textclean")
+#install.packages("tree")
+#install.packages("mltools")
+#install.packages("DescTools")
+#install.packages("servr")
+#install.packages("party")
+
+# Data Wrangling
+library(tidyverse)
+library(magrittr)
+library(dplyr)
+library(stringr)
+library(textclean)
+
+# Text Processing
+library(tm)
+library(corpus)
+library(tidytext)
+library(textclean)
+library(lubridate)
+library(hunspell)
+library(SnowballC)
+library(textmineR)
+library(scales)
+library(caret)
+library(tree)
+library(randomForest)
+library(party)
+
+
+# Visualization
+library(ggwordcloud)
+
+# Modeling and Evaluation
+library(randomForest)
+library(e1071)
+library(yardstick)
+
+library(profmem)
+library(mltools)
+library(DescTools)
+library(servr)
+
+options(scipen = 999)
+
+```
+
+
+```{r}
+#getwd()
+
+#setwd("C:/Ryerson University - Capstone project/Module 2/EIEEE - Large dataset/Combined")
+
+```
+
+
+```{r}
+# sentiment analysis FINAL script writes a file by adding sentiments scores to the sample.
+
+df_file <- data.table::fread("sentimentResultMay2020.csv")
+#glimpse(df)
+#str(df_file)
+
+
+#df_file <- read.csv("sentimentResultMay2020.csv")
+
+```
+
+
+```{r}
+str(df_file)
+```
+
+```{r}
+#assign sentiment categories:
+
+df <- df_file
+
+df <- df %>% mutate(Sentiment = case_when(sentiment_average_transformed >0 ~ 'positive',
+                                 sentiment_average_transformed <0 ~ 'negative',
+                                 TRUE ~ 'neutral')
+)
+```
+
+
+```{r}
+#Delete rows with 0 value in sentiment_score, to create data frame with either positive or negative sentiments:
+
+head(df$Sentiment,50)
+
+length(df$Sentiment)
+
+df <- df[!(df$Sentiment == "neutral"), ]
+
+length(df$Sentiment)
+head(df$Sentiment,50)
+```
+
+
+```{r}
+#Take a sample:
+set.seed(5001)
+df <- df[sample(nrow(df), size = 5000)]
+
+#rename attribute name to match script
+df$Review = df$text
+
+#subset to only relevant columns
+df <- select(df, Review, Sentiment )
+```
+
+
+```{r}
+#pre-process and cleanse data
+
+df_clean <- df %>% 
+   mutate(text_clean = Review %>% 
+             tolower() %>% 
+             replace_html() %>% 
+             replace_word_elongation() %>% # lengthen shortened word
+             str_replace_all("-", " ") %>% 
+             str_replace_all("'", " ") %>% # remove apostrophes
+             str_remove_all("[[:punct:]]") %>% # remove punctuation
+             str_remove_all("[[0-9]]") %>% 
+             str_replace_all("&amp", " ") %>%
+             str_replace_all("(RT|via)((?:\\b\\W*@\\w+)+)", " ") %>%
+             str_replace_all("â", " ") %>%
+             str_replace_all("à", " ") %>%
+             str_replace_all("ðÿ", " ") %>%
+             str_replace_all("ð", " ") %>%
+             str_replace_all("@\\w+", " ") %>%
+             str_remove_all("[[:digit:]]") %>%
+             str_replace_all("http\\w+", " ") %>%
+             str_replace_all("[ \t]{2,}", " ") %>%
+             str_replace_all("^\\s+|\\s+$", " ") %>%
+             str_squish() %>% 
+             replace_html(symbol = F) %>% # remove html tag
+             str_replace_all("[-|]", " ") %>% # replace "-" with space
+             str_remove_all("coronavirus|covid 19|covid|corona|virus|covid19|amp|https") %>%  # remove common words
+             replace_symbol() %>%
+             replace_contraction() %>%
+             make_plural() %>%
+             str_replace_all(" s ", " ") %>%  
+             str_squish() %>% # remove double whitespace
+             str_trim() # remove whitespace at the start and end of the text
+   )               
+
+df_clean %>% head()
+```
+
+
+```{r}
+# Inspect the summary of the length of each document and the maximum number of words (terms) in a document.
+
+document_length <- sapply(strsplit(df_clean$text_clean, " "), length)
+
+document_length %>% 
+   summary()
+
+# We will only take documents with more than x terms/words. Optional as >5 only reduces terms by a small amount. LDA runs better performance with more words in a document.
+
+df_clean <- df_clean %>% 
+   slice(which(document_length > 5))
+
+dim(df_clean)
+```
+
+
+```{r}
+#Apply cross validation - split the data into the training set (80%) and the testing set (20%). 
+
+set.seed(123)
+#index <- sample(nrow(df_clean), nrow(df_clean)*0.8)
+
+#data_train <- df_clean[index, ]
+#data_test <- df_clean[-index, ]
+
+#Apply a 10-fold cross validation - split the data into the training set (80%) and the testing set (20%).
+
+#source: https://stats.stackexchange.com/questions/61090/how-to-split-a-data-set-to-do-10-fold-cross-validation
+
+# set seed to generate a reproducible random sampling
+#set.seed(123)
+# to speed-up processing time, reduce the data set by taking a sample.
+#df_clean<-df_clean[sample(nrow(df_clean), size =1000) ]
+
+#Create 10 equally size folds
+folds <- cut(seq(1,nrow(df_clean)),breaks=10,labels=FALSE)
+
+#Perform 10 fold cross validation
+for(i in 1:10){
+    #Segment your data by fold using the which() function 
+    testIndexes <- which(folds==i,arr.ind=TRUE)
+    data_test <- df_clean[testIndexes, ]
+    data_train <- df_clean[-testIndexes, ]
+}
+
+str(data_train)
+```
+
+
+```{r}
+#We will also check the class proportion of the target variable in the data set.
+
+table(df_clean$Sentiment) %>% prop.table()
+```
+
+
+```{r}
+#Check for class imbalance between the negative and positive sentiment, in that case up sample the minority class first in the training set!
+
+#You need to run this line as it changes the sentiment column header to lower case and format as factor allowing to run random forest on Windows in later code below.
+
+glimpse(data_train)
+
+set.seed(123)
+data_train <- upSample(x = data_train %>% select(-Sentiment), 
+                       y = as.factor(data_train$Sentiment), yname = "sentiment") 
+
+glimpse(data_train)
+```
+
+
+```{r}
+#Create the document-term matrix (DTM) for each document. 
+#The term will be a combination of unigram (1-gram) and bigram (2-gram) for each documents.
+
+#useful source: https://paldhous.github.io/NICAR/2019/r-text-analysis.html , but was unsuccessful to remove stopwords
+
+start_time_tokenize <- Sys.time()
+
+Tokenize_stemming <- profmem({
+
+#stem_hunspell <- function(term) {
+#    # look up the term in the dictionary
+#    stems <- hunspell_stem(term)[[1]]
+    
+#    if (length(stems) == 0) { # if there are no stems, use the original term
+#        stem <- term
+#    } else { # if there are multiple stems, use the last one
+#        stem <- stems[[length(stems)]]
+#    }
+#    return(stem)
+#}
+
+train_term <- data_train %>% 
+   rownames_to_column("id") %>% 
+   unnest_tokens(output = "word", input = text_clean) %>% 
+   anti_join(stop_words)  %>% # remove stopwords
+#   mutate(word = text_tokens(word, stemmer = stem_hunspell) %>% as.character()) %>% 
+   drop_na(word) %>% 
+   count(id, word)
+
+train_bigram <- data_train %>% 
+   rownames_to_column("id") %>% 
+   unnest_tokens(output = "word", input = text_clean, token = "ngrams", n = 2) %>% 
+   drop_na(word) %>% 
+   count(id, word)
+
+#train_trigram <- data_train %>% 
+#   rownames_to_column("id") %>% 
+#   unnest_tokens(output = "word", input = text_clean, token = "ngrams", n = 3) %>% 
+#   count(id, word)
+
+test_term <- data_test %>% 
+   rownames_to_column("id") %>% 
+   unnest_tokens(output = "word", input = text_clean) %>% 
+   anti_join(stop_words)  %>% 
+#   mutate(word = text_tokens(word, stemmer = stem_hunspell) %>% as.character()) %>% 
+   drop_na(word) %>% 
+   count(id, word) 
+
+test_bigram <- data_test %>% 
+   rownames_to_column("id") %>% 
+   unnest_tokens(output = "word", input = text_clean, token = "ngrams", n = 2) %>% 
+   drop_na(word) %>% 
+   count(id, word)
+
+#test_trigram <- data_test %>% 
+#   rownames_to_column("id") %>% 
+#   unnest_tokens(output = "word", input = text_clean, token = "ngrams", n = 3) %>% 
+#   drop_na(word) %>% 
+#   count(id, word)
+
+
+str(train_term)
+str(test_term)
+
+})
+
+end_time_tokenize <- Sys.time()
+
+
+#KiloBytes used:
+sum((Tokenize_stemming$bytes), na.rm=TRUE)/1000000000
+end_time_tokenize - start_time_tokenize
+```
+
+
+```{r}
+# Here is the resulting DTM from the corpus of text data. So, number of terms inside a tweet
+
+#1-gram training and testing set:
+dtm_train_review <- train_term %>% 
+   cast_dtm(document = id, term = word, value = n)
+
+dtm_test <- test_term %>% 
+   cast_dtm(document = id, term = word, value = n)
+
+#2-gram training and testing set:
+#dtm_train_review <- train_bigram %>% 
+#   cast_dtm(document = id, term = word, value = n)
+
+#dtm_test <- test_bigram %>% 
+#   cast_dtm(document = id, term = word, value = n)
+
+#Combined 1 & 2 gram training and testing set:
+#dtm_train_review <- train_term %>% 
+#   bind_rows(train_bigram) %>% 
+ #  cast_dtm(document = id, term = word, value = n)
+
+#dtm_test <- test_term %>% 
+#   bind_rows(test_bigram) %>% 
+#   cast_dtm(document = id, term = word, value = n)
+
+#3-gram training and testing set:
+#dtm_train_review <- train_trigram %>% 
+#   cast_dtm(document = id, term = word, value = n)
+
+#dtm_test <- test_trigram %>% 
+#   cast_dtm(document = id, term = word, value = n)
+
+#Combined bi & tri gram training and testing set:
+#dtm_train_review <- train_bigram %>% 
+#   bind_rows(train_trigram) %>% 
+#   cast_dtm(document = id, term = word, value = n)
+
+#dtm_test <- test_bigram %>% 
+#   bind_rows(test_trigram) %>% 
+#   cast_dtm(document = id, term = word, value = n)
+
+inspect(dtm_train_review)
+inspect(dtm_test)
+```
+
+
+```{r}
+# Option to continue to reduce the number of terms used by only choose words that appear in at least 5 documents and maximum appear in 80% of all documents. 
+
+#I put all parameters at minimum, review as needed.
+
+word_freq <- findFreqTerms(dtm_train_review, lowfreq =10 ,highfreq = nrow(dtm_train_review)*0.8)
+
+dtm_train <- dtm_train_review[ , word_freq ]
+
+inspect(dtm_train)
+```
+
+```{r}
+dtm_lda <- Matrix::Matrix(as.matrix(dtm_train), sparse = T)
+
+glimpse(dtm_lda)
+```
+
+```{r}
+#build the LDA topic model for the document-term matrix. We will use number of topic (k) = 50, with #5000 iterations and 4000 burn-in.
+
+#Important:
+#The topic distribution for each document (θ) will be used as the features for the machine learning model. Using only 50 features, we expected dimensionality reduction. = 1 - 50 / 7651
+
+
+
+dim(dtm_lda)
+
+start_time_LDAFIT <- Sys.time()
+
+memory_LDAFIT <- profmem({
+
+set.seed(123)
+lda_review <- FitLdaModel(dtm = dtm_lda, 
+                        k = 50, 
+                        iterations = 500,
+                        burnin = 400, 
+                        )
+ })
+
+end_time_LDAFIT <- Sys.time()
+
+
+#KiloBytes used:
+sum((memory_LDAFIT$bytes), na.rm=TRUE)/1000000000
+end_time_LDAFIT - start_time_LDAFIT
+
+
+
+glimpse(lda_review, 1)
+```
+
+
+```{r}
+# Save object to a file
+#saveRDS(lda_review, file = "LDA Document classification.rds")
+```
+
+
+```{r}
+#prepare the features and the target variable of the training set for model fitting
+
+#Theta is the posterior per document-per-topic probabilities
+
+train_y <- data_train$sentiment[ rownames(lda_review$theta) %>% as.numeric() ]  # is levels: positive / negative is target variable
+
+train_x <- lda_review$theta  # is topics
+
+glimpse(train_y)
+
+```
+```{r}
+glimpse(train_x) 
+```
+
+
+```{r}
+#LDA with Random Forest
+#The random forest model will be trained using 500 trees and mtry parameter of 2. The error rate from the Out of Bag (OOB) observation is around 40% or similar to 60% of accuracy.
+
+start_timeRF <- Sys.time()
+
+evaluate_RF <- profmem({
+
+
+set.seed(123)
+rf_lda <- randomForest(x = train_x, 
+                       y = train_y, 
+                       ntree = 500, 
+                       mtry = 2) # binomial
+
+})
+end_timeRF <- Sys.time()
+
+
+#KiloBytes used:
+sum((evaluate_RF$bytes), na.rm=TRUE)/1000000000
+end_timeRF - start_timeRF
+
+
+
+rf_lda
+```
+
+
+```{r}
+
+plot(rf_lda)
+
+```
+
+```{r}
+#getTree(rf_lda, labelVar=TRUE)
+```
+
+```{r}
+
+
+dtm_lda_test <- Matrix::Matrix(as.matrix(dtm_test), sparse = T)
+
+
+glimpse(dtm_lda_test)
+```
+
+
+```{r}
+# prepare the testing dataset. To get the features of probability distribution of each topic for each document, we ran the topic model on the DTM of the testing set using only 100 iterations and burn-in of 80.
+
+
+# Get the topic probabilities for each document
+set.seed(123)
+test_x <- predict(lda_review,
+                  newdata = dtm_lda_test,
+                  iterations = 100,
+                  burnin = 80
+                  )
+
+glimpse(test_x,1)
+```
+
+
+```{r}
+# Predict the testing set using the trained model and see the performance via confusion matrix.
+set.seed(123)
+pred_test <- predict(rf_lda, test_x)
+
+pred_prob <-  predict(rf_lda, test_x, type = "prob") # used to calculate AUC evaluation score
+
+#combine the results:
+test_y <- data_test$Sentiment[ rownames(dtm_test) %>% as.numeric() ]
+
+pred_lda <- data.frame(predicted = factor(pred_test, levels = c("positive", "negative")),
+                       actual = factor(test_y, levels = c("positive", "negative"))
+                       )
+```
+
+```{r}
+glimpse(pred_test,1) 
+```
+
+```{r}
+glimpse(pred_prob,1)
+```
+
+```{r}
+glimpse(test_y,1)
+```
+
+```{r}
+glimpse(pred_lda,1)
+```
+
+
+
+```{r}
+# Translate the confusion matrix into several evaluation matrix, such as accuracy, recall/sensitivity, precision and F1 measure. We also calculate the area under curve (AUC) to check the model sensitivity toward change of classification threshold.
+
+result_lda_rf <- data.frame(
+   accuracy = accuracy_vec( truth = pred_lda$actual, 
+                            estimate = pred_lda$predicted),
+   
+   recall = sens_vec( truth = pred_lda$actual, 
+                      estimate = pred_lda$predicted),
+   
+   precision = precision_vec( truth = pred_lda$actual, 
+                              estimate = pred_lda$predicted),
+   
+   Matthews = mcc_vec(pred_lda$predicted, pred_lda$actual),
+   
+   Brier = BrierScore(glm(pred_lda$predicted ~ ., data= pred_lda, 
+                                family = binomial)),
+   
+   F1 = f_meas_vec(truth = pred_lda$actual,
+                   estimate = pred_lda$predicted),
+   
+   AUC = roc_auc_vec(truth = pred_lda$actual, 
+                     estimate = pred_prob[, 2])
+) %>% 
+   mutate_all(scales::percent, accuracy = 0.01)
+```
+
+
+
+```{r}
+conf_mat(pred_lda, 
+         truth = actual, 
+         estimate = predicted)
+```
+
+
+```{r}
+result_lda_rf
+```
+
+
+```{r}
+#LDA with Decision Tree / Random Forest tree =1 
+#The random forest model will be trained using 500 trees and mtry parameter of 2. The error rate from the Out of Bag (OOB) observation is around 40% or similar to 60% of accuracy.
+
+start_time_Tree <- Sys.time()
+
+evaluate_Tree <- profmem({
+
+
+set.seed(123)
+Tree_lda <- randomForest(x = train_x, 
+                       y = train_y, 
+                       ntree = 1, 
+                       mtry = 2) # binomial
+
+})
+
+end_time_Tree <- Sys.time()
+
+
+#KiloBytes used:
+sum((evaluate_Tree$bytes), na.rm=TRUE)/1000000000
+end_time_Tree - start_time_Tree
+
+
+Tree_lda
+```
+
+```{r}
+#getTree(Tree_lda, labelVar=TRUE)
+```
+
+
+
+```{r}
+# Predict the testing set using the trained model and see the performance via confusion matrix.
+set.seed(123)
+pred_test_Tree <- predict(Tree_lda, test_x)
+
+pred_prob_Tree <-  predict(Tree_lda, test_x, type = "prob")
+
+test_y_Tree <- data_test$Sentiment[ rownames(dtm_test) %>% as.numeric() ]
+
+pred_lda_Tree <- data.frame(predicted = factor(pred_test_Tree, levels = c("positive", "negative")),
+                       actual = factor(test_y_Tree, levels = c("positive", "negative"))
+                       )
+```
+
+
+```{r}
+# Translate the confusion matrix into several evaluation matrix, such as accuracy, recall/sensitivity, precision and F1 measure. We also calculate the area under curve (AUC) to check the model sensitivity toward change of classification threshold.
+
+result_lda_Tree <- data.frame(
+   accuracy = accuracy_vec( truth = pred_lda_Tree$actual, 
+                            estimate = pred_lda_Tree$predicted),
+   
+   recall = sens_vec( truth = pred_lda_Tree$actual, 
+                      estimate = pred_lda_Tree$predicted),
+   
+   precision = precision_vec( truth = pred_lda_Tree$actual, 
+                              estimate = pred_lda_Tree$predicted), 
+   
+   Matthews = mcc_vec(pred_lda_Tree$predicted, pred_lda_Tree$actual),
+   
+   Brier = BrierScore(glm(pred_lda_Tree$predicted ~ ., data= pred_lda_Tree, 
+                                family = binomial)),
+   
+   F1 = f_meas_vec(truth = pred_lda_Tree$actual,
+                   estimate = pred_lda_Tree$predicted),
+   
+   AUC = roc_auc_vec(truth = pred_lda_Tree$actual, 
+                     estimate = pred_prob_Tree[, 2])
+) %>% 
+   mutate_all(scales::percent, accuracy = 0.01)
+```
+
+
+```{r}
+conf_mat(pred_lda_Tree, 
+         truth = actual, 
+         estimate = predicted)
+```
+
+
+```{r}
+result_lda_Tree
+
+```
+
+
+```{r}
+
+result_lda_rf %>% 
+   bind_rows(result_lda_Tree) %>% 
+   mutate(
+      model = c("Random Forest","Decision Tree"),
+      method = c("LDA","LDA"),
+      `n features` = c( 50, 50 )
+   ) %>% 
+   select(method, model, everything()) %>% 
+   rename_all(str_to_title) 
+
+```
+
+
+
+
+```{r}
+#Vizualizing the LDA topics,terms.
+
+lda_model = text2vec::LDA$new(n_topics = 6, doc_topic_prior = 0.1, topic_word_prior = 0.01)
+
+doc_topic_distr = lda_model$fit_transform(x = dtm_lda, n_iter = 1000, 
+                          convergence_tol = 0.001, n_check_convergence = 25, 
+                          progressbar = TRUE)
+```
+
+
+```{r}
+#plotting results
+barplot(doc_topic_distr[1, ], xlab = "topic", 
+        ylab = "proportion", ylim = c(0, 1), 
+        names.arg = 1:ncol(doc_topic_distr))
+
+lda_model$get_top_words(n = 6, topic_number = c(1L, 3L, 6L), lambda = 1)
+
+
+lda_model$get_top_words(n = 6, topic_number = c(1L, 3L, 6L), lambda = 0.2)
+
+lda_model$plot()
+```
+
+
+
+
+
+

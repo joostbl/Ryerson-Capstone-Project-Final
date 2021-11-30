@@ -1,0 +1,72 @@
+---
+title: "Untitled"
+author: "Joost Bloos"
+date: "08/11/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+```{r}
+#install.packages("twitteR")
+#if (!require("pacman")) install.packages("pacman")
+#pacman::p_load(sentimentr, dplyr, magrittr)
+#install.packages("emoji")
+#install.packages("rtweet")
+#install.packages("Unicode")
+
+library(dplyr)
+library(sentimentr)
+library(twitteR)
+library(rvest)
+library(emoji)
+library(Unicode)
+
+options(stringsAsFactors = FALSE)
+library(tidyverse)
+library(rtweet)
+library(rvest)
+library(Unicode)
+library(tm)
+library(purrr)
+library(ggplot2)
+
+
+
+#Sys.setlocale(category = "LC_ALL", locale = "en_US.UTF-8") # could not be honored?
+
+
+#Source: https://cran.r-project.org/web/packages/emoji/emoji.pdf
+#Source: https://www.r-bloggers.com/2017/03/emojis-analysis-in-r/
+#Source: https://github.com/today-is-a-good-day/emojis/blob/master/emoji_analysis.R
+```
+
+
+
+
+
+```{r}
+#getwd()
+#setwd("C:/Ryerson University - Capstone project/Module 2/EIEEE - Large dataset/Combined")
+```
+
+
+```{r}
+emoij_graph <- read.csv("emojiResultMay2020.csv", header = T, sep = ",")
+
+str(emoij_graph)
+
+boxplot(emoij_graph$sentiment_score, 
+main="Boxplot Emoji",
+xlab="Emoji sentiment analysis",
+ylab="Sentiment score",
+col="orange",
+border="brown"
+)
+```
+

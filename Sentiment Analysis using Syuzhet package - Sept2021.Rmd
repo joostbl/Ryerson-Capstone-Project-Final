@@ -1,0 +1,211 @@
+---
+title: "Sentiment Analysis FINAL"
+author: "Joost Bloos"
+date: "07/11/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#Install packages:
+#Source: https://trinkerrstuff.wordpress.com/my-r-packages/qdap/
+
+#if (!require("pacman")) install.packages("pacman")
+#pacman::p_load(sentimentr, dplyr, magrittr)
+#install.packages("devtools")
+#install_github("trinker/qdapDictionaries")
+#install_github("trinker/qdapRegex")
+#install_github("trinker/qdapTools")
+#install_github("trinker/qdap")
+#install.packages("quanteda")
+#install.packages("sentimentr")
+#install.packages("ndjson")
+#install.packages("NLP")
+#install.packages("dplyr")
+#install.packages("tidyr")
+#install.packages("tm")
+#install.packages("corpus")
+#install.packages("syuzhet")
+#install.packages("plotly")
+#install.packages("wordcloud")
+
+```
+
+
+```{r}
+library(devtools)
+library(tm)
+library(qdap)
+library(sentimentr)
+library(ndjson)
+library(corpus)
+library(syuzhet)
+library(tidyr)
+library(dplyr)
+library(quanteda)
+library(ggplot2)
+library(plotly)
+library(wordcloud)
+library(profmem)
+
+library(data.table)
+
+#a good package, also takes into account  negative words and amplifiers
+#see: http://www.inside-r.org/packages/cran/qdap/docs/polarity
+```
+
+```{r}
+#getwd()
+#setwd("C:/Ryerson University - Capstone project/Module 2/EIEEE - Large dataset/Combined")
+```
+
+```{r}
+#getwd()
+#setwd("C:/Ryerson University - Capstone project/Module 2/EIEEE - Large dataset/Combined")
+```
+
+```{r}
+rawDataSept <- read.csv(file = "sampleSept2021.csv")
+
+str(rawDataSept)
+```
+
+```{r}
+#create a corpus:
+importdocs = corpus(rawDataSept, text_field = 'text')
+```
+
+```{r}
+#preprocessing of data
+importdocs <- gsub("'", "", importdocs)  # remove apostrophes
+importdocs <- gsub("[[:punct:]]", " ", importdocs)  # replace punctuation with space
+importdocs <- gsub("[[:cntrl:]]", " ", importdocs)  # replace control characters with space
+importdocs <- gsub("^[[:space:]]+", "", importdocs) # remove whitespace at beginning of documents
+importdocs <- gsub("[[:space:]]+$", "", importdocs) # remove whitespace at end of documents
+importdocs <- tolower(importdocs)
+
+# CLEANING TWEETS
+importdocs=gsub("&amp", "", importdocs)
+importdocs = gsub("(RT|via)((?:\\b\\W*@\\w+)+)", "", importdocs)
+importdocs = gsub("@\\w+", "", importdocs)
+importdocs = gsub("[[:digit:]]", "", importdocs)
+importdocs = gsub("http\\w+", "", importdocs)
+importdocs = gsub("[ \t]{2,}", "", importdocs)
+importdocs = gsub("^\\s+|\\s+$", "", importdocs)
+importdocs <- iconv(importdocs, "UTF-8", "ASCII", sub="")
+
+str(importdocs)
+```
+
+
+```{r}
+#Create corpus with get-sentences function:
+mycorpus <- get_sentences(importdocs) # creates a character vector and tokenize by sentence
+
+
+head(mycorpus,10)
+```
+
+```{r}
+saveRDS(mycorpus, file = "mycorpusSept2021.rds")
+
+#mycorpus <- read_rds("mycorpusSept2021.rds")
+```
+
+
+```{r}
+#apply Syuzhet package, source : https://cran.r-project.org/web/packages/syuzhet/vignettes/syuzhet-vignette.html
+#Measure running time and memory
+
+start_time <- Sys.time()
+
+mysentiment_memory <- profmem({
+  
+mysentiment <- get_sentiment(mycorpus, method= "syuzhet")
+  
+})
+
+end_time <- Sys.time()
+
+end_time - start_time # time lapsed
+#print(mysentiment_memory, expr = FALSE)
+
+#Giga Bytes used:
+sum((mysentiment_memory$bytes), na.rm=TRUE)/1000000000 # Giga bytes used
+
+
+```
+
+```{r}
+# run overall score, result overall neutral to perhaps moderate positive
+summary(mysentiment)
+
+
+```
+
+```{r}
+#results expressed in histogram
+
+qplot(mysentiment,   geom="histogram",binwidth=0.1,main="Review Sentiment Histogram - (Syuzhet)")
+```
+
+```{r}
+
+# “the NRC emotion lexicon is a list of words and their associations with eight emotions . See: http://saifmohammad.com/WebPages/NRC-Emotion-Lexicon.htm
+
+nrc_mycorpus <- get_nrc_sentiment(mycorpus)
+
+```
+
+```{r}
+#show positive and negative word use:
+head(nrc_mycorpus,10)
+```
+
+
+```{r}
+#identified tweets as angry:
+angry_items <- which(nrc_mycorpus$anger > 0)
+head(mycorpus[angry_items],5)
+```
+
+
+```{r}
+#identified tweets as joy:
+joy_items <- which(nrc_mycorpus$joy > 0)
+head(mycorpus[joy_items],5)
+```
+
+
+```{r}
+# as a vizual, the percentage of each emotion in the text can be plotted as a bar graph:
+
+barplot(
+  sort(colSums(prop.table(nrc_mycorpus[, 1:8]))), 
+  horiz = TRUE, 
+  cex.names = 0.7, 
+  las = 1, 
+  main = "Emotions in Sample tweets - (Syuzhet Package)", xlab="Percentage"
+  )
+
+```
+
+```{r}
+#integrate sentiment score into updated dataset
+sentimentResultSept2021 <- rawDataSept
+
+#add sentiment score:
+sentimentResultSept2021$sentiment_Syuzhet = mysentiment
+str(sentimentResultSept2021)
+```
+
+```{r}
+#write sentiment score to original dataset
+
+#write.csv(sentimentResultSept2021,'sentimentResultSept2021.csv')
+```
+
+

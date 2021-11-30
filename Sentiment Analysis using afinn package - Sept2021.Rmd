@@ -1,0 +1,126 @@
+---
+title: "Sentiment Analysis FINAL"
+author: "Joost Bloos"
+date: "07/11/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#Install packages:
+#Source: https://trinkerrstuff.wordpress.com/my-r-packages/qdap/
+
+#if (!require("pacman")) install.packages("pacman")
+#pacman::p_load(sentimentr, dplyr, magrittr)
+#install.packages("devtools")
+#install_github("trinker/qdapDictionaries")
+#install_github("trinker/qdapRegex")
+#install_github("trinker/qdapTools")
+#install_github("trinker/qdap")
+#install.packages("quanteda")
+#install.packages("sentimentr")
+#install.packages("ndjson")
+#install.packages("NLP")
+#install.packages("dplyr")
+#install.packages("tidyr")
+#install.packages("tm")
+#install.packages("corpus")
+#install.packages("syuzhet")
+#install.packages("plotly")
+#install.packages("wordcloud")
+#install.packages("profmem")
+
+```
+
+
+```{r}
+library(devtools)
+library(tm)
+library(qdap)
+library(sentimentr)
+library(ndjson)
+library(corpus)
+library(syuzhet)
+library(tidyr)
+library(dplyr)
+library(quanteda)
+library(ggplot2)
+library(plotly)
+library(wordcloud)
+library(profmem)
+
+library(profmem)
+
+library(data.table)
+
+
+#a good package, also takes into account  negative words and amplifiers
+#see: http://www.inside-r.org/packages/cran/qdap/docs/polarity
+```
+
+```{r}
+#getwd()
+#setwd("C:/Ryerson University - Capstone project/Module 2/EIEEE - Large dataset/Combined")
+```
+
+```{r}
+mycorpus <- readRDS("mycorpusSept2021.rds")
+
+```
+
+
+
+```{r}
+
+#apply packahe afinn
+
+start_time <- Sys.time()
+
+mysentiment_memory <- profmem({
+  
+mysentiment <- get_sentiment(mycorpus, method= "afinn")
+
+})
+
+end_time <- Sys.time()
+
+end_time - start_time #time elapsed
+#print(mysentiment_memory, expr = FALSE)
+
+#Giga Bytes used:
+sum((mysentiment_memory$bytes), na.rm=TRUE)/1000000000 # Gigabytes used
+
+```
+
+```{r}
+# run overall score, result overall neutral to perhaps moderate positive
+summary(mysentiment)
+```
+
+```{r}
+#results expressed in histogram
+
+qplot(mysentiment,   geom="histogram",binwidth=0.1,main="Review Sentiment Histogram - (afinn)")
+```
+
+
+
+```{r}
+#integrate sentiment score into updated dataset
+
+#sentimentResultSept2021 <- read.csv(file = "sentimentResultSept2021.csv")
+
+#sentimentResultSept2021$sentiment_afinn = mysentiment
+#str(sentimentResultSept2021)
+```
+
+```{r}
+#write sentiment score to original dataset
+
+#write.csv(sentimentResultSept2021,'sentimentResultSept2021.csv')
+```
+
+

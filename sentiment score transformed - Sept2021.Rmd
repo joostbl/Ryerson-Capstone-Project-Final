@@ -1,0 +1,117 @@
+---
+title: "Mutate sentiment scores"
+author: "Joost Bloos"
+date: "17/11/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(magrittr)
+library(dplyr)
+```
+
+
+
+
+```{r}
+#getwd()
+sentimentResultSept2021 <- read.csv("sentimentResultSept2021.csv", header = T, sep = "," )
+
+
+sampleX <- read.csv('sampleSept2021.csv', header = T, sep = "," )
+
+
+str(sentimentResultSept2021)
+
+```
+
+
+```{r}
+
+#assign numeric sentiment score by reassigning interquantile values as neutral score = 0 as :
+summary(sentimentResultSept2021$sentiment_nrc)
+summary(sentimentResultSept2021$sentiment_afinn)
+summary(sentimentResultSept2021$sentiment_bing)
+summary(sentimentResultSept2021$sentiment_Syuzhet)
+summary(sentimentResultSept2021$sentimentR) # this is the sentimentr dictionary
+
+sentimentResultSept2021 <- sentimentResultSept2021 %>% mutate(sentiment_nrc_transformed = case_when(sentiment_nrc >= 1 ~ 1,
+                                 sentiment_nrc <= 0 ~ -1,
+                                 TRUE ~ 0)
+)
+
+sentimentResultSept2021 <- sentimentResultSept2021 %>% mutate(sentiment_afinn_transformed = case_when(sentiment_afinn >= 1 ~ 1,
+                                 sentiment_afinn <= -2 ~ -1,
+                                 TRUE ~ 0)
+)
+
+sentimentResultSept2021 <- sentimentResultSept2021 %>% mutate(sentiment_Bing_transformed = case_when(sentiment_bing >= 1 ~ 1,
+                                 sentiment_bing <= -1 ~ -1,
+                                 TRUE ~ 0)
+)
+
+sentimentResultSept2021 <- sentimentResultSept2021 %>% mutate(sentiment_Syuzhet_transformed = case_when(sentiment_Syuzhet >= 0.550 ~ 1,
+                                 sentiment_Syuzhet <= -0.65 ~ -1,
+                                 TRUE ~ 0)
+)
+
+sentimentResultSept2021 <- sentimentResultSept2021 %>% mutate(sentiment_Sentimentr_transformed = case_when(sentimentR >= 0.1281 ~ 1,
+                                 sentimentR <= -0.158 ~ -1,
+                                 TRUE ~ 0)
+)
+
+str(sentimentResultSept2021,10)
+#head(sentimentResultSept2021,20)
+
+```
+
+
+```{r}
+
+#Create a binomial variable by averaging positive and negative scores, if 3 or more disctionaries are in agreement than assign this score, otherise score is zero and not to be considered.
+
+sentimentResultSept2021 <- sentimentResultSept2021 %>% mutate(sentiment_average_transformed = case_when((sentiment_nrc_transformed + sentiment_afinn_transformed + sentiment_Syuzhet_transformed + sentiment_Bing_transformed ) >= 3 ~ 1,
+                                 (sentiment_nrc_transformed + sentiment_afinn_transformed + sentiment_Syuzhet_transformed + sentiment_Bing_transformed ) <= -3 ~ -1,
+                                 TRUE ~ 0)
+)
+
+sentiment_average_transformed <- sentimentResultSept2021$sentiment_average_transformed
+
+summary(sentiment_average_transformed)
+
+
+#Count number of positive and negative scores after transformationa and averaging.
+x = sum(sentimentResultSept2021$sentiment_average_transformed == 1)
+x # total positives
+
+y = sum(sentimentResultSept2021$sentiment_average_transformed == -1)
+y # total negatives
+
+x + y #Total positives and negative out of the sample
+
+#check for percentage of tweets assigned positive and negative out of the sample
+(x+y)/length(sampleX$X)
+x/length(sampleX$X) # percentage positive
+y/length(sampleX$X) # percentage negative
+
+#Check for imbalance data set of positive and negatives
+x/(x+y) #positives class
+y/(y+x) #negative class
+
+```
+
+```{r}
+str(sentimentResultSept2021)
+```
+
+```{r}
+
+#write.csv(sentimentResultSept2021,'sentimentResultSept2021.csv')
+
+
+```
+
